@@ -13,6 +13,9 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+env:
+  resourceGroupName: rg_GitHubExample
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
@@ -33,20 +36,37 @@ jobs:
           # ClientId of the Azure Service principal created.
           enable-AzPSSession: true
 
-      - name: Azure PowerShell Action
+      - name: Build the Template
+        uses: Azure/cli@v2.1.0
+        with:
+          # Specify the script here
+          inlineScript: az bicep build --file main.bicep --outfile ./main.json
+
+      - name: Perform What-If Test
         uses: Azure/powershell@v2
         with:
           # Specify the Az PowerShell script here.
-          inlineScript: New-AzResourceGroup -Name rg_GitHubExample -location CentralIndia -Force
+          inlineScript: New-AzResourceGroupDeployment -ResourceGroupName ${{ env.resourceGroupName }} -TemplateFile main.bicep -WhatIf
           # Azure PS version to be used to execute the script, example: 1.8.0, 2.8.0, 3.4.0. To use the latest version, specify "latest".
           azPSVersion: latest
 
-      - name: Deploy Azure Resource Manager (ARM) Template
+      - name: Create the Resource Group
+        uses: Azure/powershell@v2
+        with:
+          # Specify the Az PowerShell script here.
+          inlineScript: New-AzResourceGroup -Name ${{ env.resourceGroupName }} -location CentralIndia -Force
+          # Azure PS version to be used to execute the script, example: 1.8.0, 2.8.0, 3.4.0. To use the latest version, specify "latest".
+          azPSVersion: latest
+
+      - name: Deploy Bicep Template
         uses: Azure/arm-deploy@v2
         with:
           # Provide the scope of the deployment. Valid values are: 'resourcegroup', 'tenant', 'managementgroup', 'subscription'
           scope: resourcegroup
           # Provide the name of a resource group, only required for resource Group deployments.
-          resourceGroupName: rg_GitHubExample
+          resourceGroupName: ${{ env.resourceGroupName }}
           # Specify the path or URL to the Azure Resource Manager template.
-          template: main.bicep
+          template: main.json
+          # Supply deployment parameter values.
+          # parameters: storageAccountPrefix=st
+          deploymentName: "gh${{github.run_id}}"
